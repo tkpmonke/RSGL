@@ -138,7 +138,7 @@ typedef bool RSGL_bool;
 #define RSGL_texture size_t
 #endif
 
-// WebGL doesn't support compute shaders iirc so yeah
+/* WebGL doesn't support compute shaders iirc so yeah */
 #if defined(__EMSCRIPTEN__) && defined(RSGL_USE_COMPUTE)
 #undef RSGL_USE_COMPUTE
 #endif
@@ -318,7 +318,8 @@ typedef struct RSGL_renderer {
     void (* scissorEnd)(void);
     RSGL_programInfo (*createProgram)(const char* VShaderCode, const char* FShaderCode, const char* posName, const char* texName, const char* colorName);
     void (* deleteProgram)(RSGL_programInfo program);
-    void (* setShaderValue)(u32 program, char* var, float value[], u8 len);
+	void (* setShaderValue)(u32 program, char* var, float value[], u8 len);
+    void (* setShaderValueI)(u32 program, char* var, int value[], u8 len);
     RSGL_texture (* createAtlas)(u32 atlasWidth, u32 atlasHeight);
     u8 (* resizeAtlas)(RSGL_texture* atlas, u32 newWidth, u32 newHeight);
     void (* bitmapToAtlas)(RSGL_texture atlas, u8* bitmap, float x, float y, float w, float h);
@@ -326,7 +327,7 @@ typedef struct RSGL_renderer {
 #ifdef RSGL_USE_COMPUTE
 	 RSGL_programInfo (*createComputeProgram)(const char* CShaderCode);
 	 void (*dispatchComputeProgram)(RSGL_programInfo program, u32 groups_x, u32 groups_y, u32 groups_z);
-	 void (*bindComputeTexture)(u32 texture, u8 format);
+	 void (*bindComputeTexture)(RSGL_programInfo program, u32 texture, u8 format);
 #endif
 } RSGL_renderer;
 
@@ -423,11 +424,12 @@ RSGLDEF void RSGL_renderScissorEnd(void);
 RSGLDEF RSGL_programInfo RSGL_renderCreateProgram(const char* VShaderCode, const char* FShaderCode, const char* posName, const char* texName, const char* colorName);
 RSGLDEF void RSGL_renderDeleteProgram(RSGL_programInfo program);
 RSGLDEF void RSGL_renderSetShaderValue(u32 program, char* var, float value[], u8 len);
+RSGLDEF void RSGL_renderSetShaderValueI(u32 program, char* var, int value[], u8 len);
 
 #ifdef RSGL_USE_COMPUTE
 RSGLDEF RSGL_programInfo RSGL_renderCreateComputeProgram(const char *CShaderCode);
 RSGLDEF void RSGL_renderDispatchComputeProgram(RSGL_programInfo program, u32 groups_x, u32 groups_y, u32 groups_z);
-RSGLDEF void RSGL_renderBindComputeTexture(u32 texture, u8 format);
+RSGLDEF void RSGL_renderBindComputeTexture(RSGL_programInfo program, u32 texture, u8 format);
 #endif
 
 /* these are RFont functions that also must be defined by the renderer
@@ -722,6 +724,10 @@ void RSGL_renderSetShaderValue(u32 program, char* var, float value[], u8 len) {
     return RSGL_currentRenderer.setShaderValue(program, var, value, len);
 }
 
+void RSGL_renderSetShaderValueI(u32 program, char* var, int value[], u8 len) {
+    return RSGL_currentRenderer.setShaderValueI(program, var, value, len);
+}
+
 #ifdef RSGL_USE_COMPUTE
 RSGL_programInfo RSGL_renderCreateComputeProgram(const char* CShaderCode) {
 	return RSGL_currentRenderer.createComputeProgram(CShaderCode);
@@ -731,8 +737,8 @@ void RSGL_renderDispatchComputeProgram(RSGL_programInfo program, u32 groups_x, u
 	RSGL_currentRenderer.dispatchComputeProgram(program, groups_x, groups_y, groups_z);
 }
 
-void RSGL_renderBindComputeTexture(u32 texture, u8 format) {
-	RSGL_currentRenderer.bindComputeTexture(texture, format);
+void RSGL_renderBindComputeTexture(RSGL_programInfo program, u32 texture, u8 format) {
+	RSGL_currentRenderer.bindComputeTexture(program, texture, format);
 }
 #endif
 

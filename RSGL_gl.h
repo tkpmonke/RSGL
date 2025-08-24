@@ -37,6 +37,7 @@ RSGLDEF void RSGL_GL_scissorEnd(void);
 RSGLDEF RSGL_programInfo RSGL_GL_createProgram(const char* VShaderCode, const char* FShaderCode, const char* posName, const char* texName, const char* colorName);
 RSGLDEF void RSGL_GL_deleteProgram(RSGL_programInfo program);
 RSGLDEF void RSGL_GL_setShaderValue(u32 program, char* var, float value[], u8 len);
+RSGLDEF void RSGL_GL_setShaderValueI(u32 program, char* var, int value[], u8 len);
 #ifndef RSGL_NO_TEXT
 /* RFont */
 RFont_texture RFont_GL_create_atlas(u32 atlasWidth, u32 atlasHeight);
@@ -47,7 +48,7 @@ void RFont_GL_bitmap_to_atlas(RFont_texture atlas, u8* bitmap, float x, float y,
 #ifdef RSGL_USE_COMPUTE
 RSGLDEF RSGL_programInfo RSGL_GL_createComputeProgram(const char* CShaderCode);
 RSGLDEF void RSGL_GL_dispatchComputeProgram(RSGL_programInfo program, u32 groups_x, u32 groups_y, u32 groups_z);
-RSGLDEF void RSGL_GL_bindComputeTexture(u32 texture, u8 format);
+RSGLDEF void RSGL_GL_bindComputeTexture(RSGL_programInfo program, u32 texture, u8 format);
 #endif
 
 #endif
@@ -135,6 +136,10 @@ typedef void (*glUniform1fPROC) (GLint location, GLfloat v0);
 typedef void (*glUniform2fPROC) (GLint location, GLfloat v0, GLfloat v1);
 typedef void (*glUniform3fPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
 typedef void (*glUniform4fPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+typedef void (*glUniform1iPROC) (GLint location, GLint v0);
+typedef void (*glUniform2iPROC) (GLint location, GLint v0, GLint v1);
+typedef void (*glUniform3iPROC) (GLint location, GLint v0, GLint v1, GLint v2);
+typedef void (*glUniform4iPROC) (GLint location, GLint v0, GLint v1, GLint v2, GLint v3);
 
 glShaderSourcePROC glShaderSourceSRC = NULL;
 glCreateShaderPROC glCreateShaderSRC = NULL;
@@ -166,6 +171,10 @@ glUniform1fPROC glUniform1fSRC = NULL;
 glUniform2fPROC glUniform2fSRC = NULL;
 glUniform3fPROC glUniform3fSRC = NULL;
 glUniform4fPROC glUniform4fSRC = NULL;
+glUniform1iPROC glUniform1iSRC = NULL;
+glUniform2iPROC glUniform2iSRC = NULL;
+glUniform3iPROC glUniform3iSRC = NULL;
+glUniform4iPROC glUniform4iSRC = NULL;
 
 #ifdef RSGL_USE_COMPUTE
 typedef void (*glDispatchComputePROC)(GLuint x, GLuint y, GLuint z);
@@ -193,10 +202,6 @@ glBindVertexArrayPROC glBindVertexArraySRC = NULL;
 glDeleteVertexArraysPROC glDeleteVertexArraysSRC = NULL;
 #endif
 
-#define glUniform1f glUniform1fSRC
-#define glUniform2f glUniform2fSRC
-#define glUniform3f glUniform3fSRC
-#define glUniform4f glUniform4fSRC
 #define glActiveTexture glActiveTextureSRC
 #define glShaderSource glShaderSourceSRC
 #define glCreateShader glCreateShaderSRC
@@ -226,6 +231,14 @@ glDeleteVertexArraysPROC glDeleteVertexArraysSRC = NULL;
 #define glBindVertexArray glBindVertexArraySRC
 #define glGetUniformLocation glGetUniformLocationSRC
 #define glUniformMatrix4fv glUniformMatrix4fvSRC
+#define glUniform1f glUniform1fSRC
+#define glUniform2f glUniform2fSRC
+#define glUniform3f glUniform3fSRC
+#define glUniform4f glUniform4fSRC
+#define glUniform1i glUniform1iSRC
+#define glUniform2i glUniform2iSRC
+#define glUniform3i glUniform3iSRC
+#define glUniform4i glUniform4iSRC
 
 #ifdef RSGL_USE_COMPUTE
 #define glMemoryBarrier glMemoryBarrierSRC
@@ -262,6 +275,7 @@ RSGL_renderer RSGL_GL_renderer() {
     renderer.createProgram = RSGL_GL_createProgram;
     renderer.deleteProgram = RSGL_GL_deleteProgram;
     renderer.setShaderValue = RSGL_GL_setShaderValue;
+    renderer.setShaderValueI = RSGL_GL_setShaderValueI;
     #ifndef RSGL_NO_TEXT
     renderer.createAtlas = RFont_GL_create_atlas;
     renderer.resizeAtlas = RFont_GL_resize_atlas;
@@ -827,6 +841,22 @@ void RSGL_GL_setShaderValue(u32 program, char* var, float value[], u8 len) {
 
     glUseProgram(0);
 }
+
+void RSGL_GL_setShaderValueI(u32 program, char* var, int value[], u8 len) {
+    glUseProgram(program);
+    int loc = glGetUniformLocation(program, var);
+
+    switch (len) {
+        case 1: glUniform1i(loc, value[0]); break;
+        case 2: glUniform2i(loc, value[0], value[1]); break;
+        case 3: glUniform3i(loc, value[0], value[1], value[2]); break;
+        case 4: glUniform4i(loc, value[0], value[1], value[2], value[3]); break;
+        default: break;
+    }
+
+    glUseProgram(0);
+}
+
 #else
 RSGL_programInfo RSGL_GL_createProgram(const char* VShaderCode, const char* FShaderCode, const char* posName, const char* texName, const char* colorName) {
     RSGL_UNUSED(VShaderCode); RSGL_UNUSED(FShaderCode); RSGL_UNUSED(posName); RSGL_UNUSED(texName); RSGL_UNUSED(colorName);
@@ -1012,15 +1042,16 @@ void RSGL_GL_dispatchComputeProgram(RSGL_programInfo program, u32 groups_x, u32 
 }
 
 
-void RSGL_GL_bindComputeTexture(u32 texture, u8 format) {
+void RSGL_GL_bindComputeTexture(RSGL_programInfo program, u32 texture, u8 format) {
 	u16 c = 0;
-   switch (format) {
-       case 2: c = GL_RG8; break;
-       case 3: c = GL_RGB8; break;
-       case 4: c = GL_RGBA8; break;
-       default: break;
-   }
+	switch (format) {
+	    case 2: c = GL_RG8; break;
+	    case 3: c = GL_RGB8; break;
+	    case 4: c = GL_RGBA8; break;
+	    default: break;
+	}
 	glBindImageTexture(0, texture, 0, GL_FALSE, 0, GL_READ_WRITE, c);
+	RSGL_GL_setShaderValueI(program.program, "texture0", (int[1]){0}, 1);
 }
 
 #endif
@@ -1064,6 +1095,10 @@ int RSGL_loadGLModern(RSGLloadfunc proc) {
     RSGL_PROC_DEF(proc, glUniform2f);
     RSGL_PROC_DEF(proc, glUniform3f);
     RSGL_PROC_DEF(proc, glUniform4f);
+    RSGL_PROC_DEF(proc, glUniform1i);
+    RSGL_PROC_DEF(proc, glUniform2i);
+    RSGL_PROC_DEF(proc, glUniform3i);
+    RSGL_PROC_DEF(proc, glUniform4i);
     #ifdef RSGL_USE_COMPUTE
     RSGL_PROC_DEF(proc, glDispatchCompute);
 	 RSGL_PROC_DEF(proc, glMemoryBarrier);
